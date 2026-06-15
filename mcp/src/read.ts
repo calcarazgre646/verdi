@@ -22,7 +22,7 @@ export function readModule(ctx: Ctx): ToolModule {
   // receives a bare, ambiguous JDE number. Correctness is forced by the tool:
   // Julian dates become ISO, implied decimals are applied, and any numeric column
   // we cannot resolve is wrapped as {raw, unresolved:true} (never a plain number).
-  async function resolveResult(r: { columns: string[]; rows: Record<string, unknown>[]; rowCount: number }) {
+  async function resolveResult(r: { columns: string[]; rows: Record<string, unknown>[]; rowCount: number }, sql: string) {
     const cache = new Map<string, { found: boolean; decimals: number; isDate: boolean }>();
     const specOf = async (di: string) => {
       if (cache.has(di)) return cache.get(di)!;
@@ -81,11 +81,30 @@ export function readModule(ctx: Ctx): ToolModule {
       return { name, dataItem: s.di, resolution };
     });
 
-    const out: Record<string, unknown> = { mode: db.mode, rowCount: r.rowCount, columns, rows };
+    // Read-side safety: the equivalent of the write tier's approval gate is
+    // surfacing uncertainty so the agent cannot hand a human a confident-but-wrong
+    // figure. We can flag the risk in-band; we cannot force the agent's wording.
+    const warnings: string[] = [];
     if (wrapped.size) {
-      out.warnings = [
-        `No Data Dictionary entry for: ${[...wrapped].join(", ")}. Their numeric cells are returned as {raw, unresolved:true} and MUST NOT be interpreted as values. Resolve the data item or set JDE_DD_QUERY; alias computed columns with an underscore (e.g. AS total_qty) to opt out.`,
-      ];
+      warnings.push(
+        `Unresolved column(s): ${[...wrapped].join(", ")}. Returned as {raw, unresolved:true} and MUST NOT be reported as values. Resolve the data item or set JDE_DD_QUERY; alias computed columns with an underscore (e.g. AS total_qty) to opt out.`
+      );
+    }
+    if (r.rowCount === 0) {
+      warnings.push(
+        "Zero rows returned. This is ABSENCE of data, not a business zero. Do not report 0 as a figure; say the query matched nothing and check the filters."
+      );
+    }
+    if (/\b(SUM|AVG)\s*\(/i.test(sql || "")) {
+      warnings.push(
+        "Aggregate (SUM/AVG) computed in SQL over stored values. Verify the decimal scale before reporting: columns can carry different implied decimals, and summing across them is meaningless. Prefer resolving per-row, then aggregating."
+      );
+    }
+    const out: Record<string, unknown> = { mode: db.mode, rowCount: r.rowCount, columns, rows };
+    if (warnings.length) {
+      out.warnings = warnings;
+      out.reporting =
+        "Before giving any of these figures to a human, surface the caveat. Never present an unresolved, aggregated-unverified, or empty result as a certain number.";
     }
     return out;
   }
@@ -148,8 +167,10 @@ export function readModule(ctx: Ctx): ToolModule {
     async jde_query(args: any) {
       assertReadOnly(args.sql);
       const r = await db.read(args.sql, args.params);
-      // Force correctness: numbers come back DD-resolved or flagged, never bare.
-      return text(await resolveResult(r));
+      // Force correctness: numbers come back DD-resolved or flagged, never bare,
+      // plus read-side caveats (empty result, SQL aggregates) so a human is never
+      // handed a confident-but-wrong figure.
+      return text(await resolveResult(r, args.sql));
     },
     async jde_list_files(args: any) {
       const pattern = String(args.pattern ?? "%");

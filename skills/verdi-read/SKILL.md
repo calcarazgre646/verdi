@@ -88,10 +88,20 @@ FROM JDFDATA.F0101
 WHERE ABALPH LIKE ?       -- e.g. 'ACME%'
 ```
 
-## Reporting discipline
+## Reporting discipline (silent harm lives here)
 
+A confident but wrong figure handed to a human who decides on it is real harm,
+even though nothing was written. `jde_query` surfaces uncertainty in-band: when a
+result has caveats it returns a `warnings` array and a `reporting` directive.
+**Honor them when you speak to a human.**
+
+- If `warnings`/`reporting` are present, **state the caveat with the figure.** Do
+  not present an unresolved, aggregated-unverified, or empty result as certain.
 - Trust the resolved values in `rows`; never re-convert dates or re-shift decimals.
 - Never report a `{raw, unresolved:true}` cell as a number. Resolve it first.
-- If a join returns zero rows, suspect `MCU`/char padding first.
+- **Zero rows is absence, not a business zero.** Say the query matched nothing and
+  check the filters (suspect `MCU`/char padding); never report `0`.
 - A failed read is not zero. Surface the error; never let `?? 0` print a fake
   business number.
+- When unsure whether a number is trustworthy, say so. "I am not certain, verify"
+  is a valid and required answer for an ERP figure.

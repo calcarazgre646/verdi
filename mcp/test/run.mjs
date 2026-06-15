@@ -68,6 +68,15 @@ ok(Array.isArray(q.warnings) && q.warnings.length > 0, "unresolved column raises
 const byName = Object.fromEntries(q.columns.map((c) => [c.name, c.resolution]));
 ok(byName.SDTRDJ === "julian->ISO" && byName.SDUPRC === "decimal(4)" && byName.AVAIL === "unresolved", "column provenance is reported: " + JSON.stringify(byName));
 
+// READ-SIDE SAFETY: zero rows is absence, not a business zero
+const empty = J(await s.tool("jde_query", { sql: "SELECT SDDOCO FROM JDFDATA.F4211 WHERE SDDOCO = 999999" }));
+ok(empty.rowCount === 0 && Array.isArray(empty.warnings) && empty.warnings.some((w) => /absence/i.test(w)), "zero rows flagged as absence, not 0: " + JSON.stringify(empty.warnings));
+ok(typeof empty.reporting === "string", "empty result carries a reporting directive");
+
+// aggregate computed in SQL raises a scale caveat
+const agg = J(await s.tool("jde_query", { sql: "SELECT SUM(SDUORG) AS total_qty FROM JDFDATA.F4211" }));
+ok(Array.isArray(agg.warnings) && agg.warnings.some((w) => /aggregate/i.test(w)), "SQL aggregate raises a verify-scale caveat: " + JSON.stringify(agg.warnings));
+
 // with no DD reachable, numbers must NOT come back bare (fail safe)
 const noDD = boot({ JDE_DD_QUERY: "SELECT 1 AS display_decimals, 'x' AS data_type WHERE 1=0" });
 await noDD.rpc("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "t", version: "0" } });
