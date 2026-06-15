@@ -49,9 +49,11 @@ docs/
 | `jde_data_dictionary` | data item spec + DISPLAY decimals |
 | `jde_describe_file` | columns/types/text from the catalog |
 
-`jde_query` rejects anything but `SELECT`/`WITH` as a convenience, but **that
-string check is not the security boundary**. See [SECURITY](docs/SECURITY.md):
-read-only must be enforced by the IBM i profile's object authority, not the parser.
+**Read-only is enforced by the database, not by this app.** Run Verdi under an IBM
+i profile with read-only (`*USE`) authority on the data library and no write
+authority. That object authority is the wall: DB2 itself rejects any write,
+whatever SQL arrives. The `jde_query` SELECT/WITH check is a *second layer* and a
+clean early error ("Verdi only reads"), not the guarantee. See [SECURITY](docs/SECURITY.md).
 
 ## Setup
 
