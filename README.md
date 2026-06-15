@@ -4,18 +4,28 @@
 
 # Verdi (open core)
 
-**Verdi** is an MCP server for **JD Edwards World** (IBM i / DB2 for i).
-
 [![CI](https://github.com/calcarazgre646/verdi/actions/workflows/ci.yml/badge.svg)](https://github.com/calcarazgre646/verdi/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-A Claude Code plugin and MCP server that teaches any agent to **read and explore
-JD Edwards World** (IBM i / DB2 for i): query physical files via SQL and discover
-an install's layout and Data Dictionary at runtime. Read-only and safe by design.
+**No LLM knows how to read JD Edwards World correctly.** Point a raw agent at a JDE
+World database and it returns confidently wrong answers, because the meaning of the
+data lives in conventions nobody wrote down in the schema:
+
+- **Dates are Julian integers.** `126166` is 2026-06-15, not a hundred-thousand of anything.
+- **Decimals are implied.** A stored `125000` can mean `12.5000`; the real decimal count lives in the Data Dictionary, not the column.
+- **Field names are cryptic.** Every column is a 2-char file prefix plus a data item (`ABAN8` = Address Book, Address Number).
+
+That tacit knowledge is exactly what makes querying JDE World by hand a nightmare,
+and a plain SQL connection gives an agent none of it. A confidently wrong number
+from your ERP is worse than no answer.
+
+**Verdi teaches the agent that knowledge.** It pairs skills that encode the JD
+Edwards World conventions with an MCP server that gives safe, read-only SQL access
+and runtime discovery of an install's layout and Data Dictionary, so the agent
+reads JDE *correctly*. The SQL is the easy part. The encoded knowledge is the product.
 
 > Controlled writes (Z-file staging, batch processing, approval gate, audit log)
-> are a separate proprietary module and are **not** part of this open core. See
-> "Controlled writes" below.
+> are a separate proprietary module and are not part of this open core.
 
 ## What's inside
 
