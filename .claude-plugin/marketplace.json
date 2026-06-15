@@ -1,0 +1,13 @@
+{
+  "name": "calcarazgre646-verdi",
+  "owner": {
+    "name": "Carlos Alcaraz Gregor"
+  },
+  "plugins": [
+    {
+      "name": "verdi",
+      "source": "./",
+      "description": "Teaches any Claude agent to read and explore JD Edwards World (IBM i / DB2 for i) via SQL, with runtime layout and Data Dictionary discovery. Read-only open core."
+    }
+  ]
+}

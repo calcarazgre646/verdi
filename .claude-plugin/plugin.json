@@ -1,0 +1,21 @@
+{
+  "name": "verdi",
+  "version": "0.3.0",
+  "description": "Teaches any Claude agent to read and explore JD Edwards World (IBM i / DB2 for i) via SQL, with runtime layout and Data Dictionary discovery. Read-only open core.",
+  "author": "Carlos Alcaraz Gregor",
+  "license": "Apache-2.0",
+  "mcpServers": {
+    "verdi": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/dist/index.js"],
+      "env": {
+        "JDE_MODE": "${JDE_MODE:-DEMO}",
+        "JDE_HOST": "${JDE_HOST:-}",
+        "JDE_PORT": "${JDE_PORT:-8076}",
+        "JDE_USER": "${JDE_USER:-}",
+        "JDE_PASSWORD": "${JDE_PASSWORD:-}",
+        "JDE_DATA_LIB": "${JDE_DATA_LIB:-JDFDATA}"
+      }
+    }
+  }
+}
