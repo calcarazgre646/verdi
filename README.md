@@ -49,7 +49,9 @@ docs/
 | `jde_data_dictionary` | data item spec + DISPLAY decimals |
 | `jde_describe_file` | columns/types/text from the catalog |
 
-The server is read-only: `jde_query` rejects anything but `SELECT`/`WITH`.
+`jde_query` rejects anything but `SELECT`/`WITH` as a convenience, but **that
+string check is not the security boundary**. See [SECURITY](docs/SECURITY.md):
+read-only must be enforced by the IBM i profile's object authority, not the parser.
 
 ## Setup
 
@@ -81,10 +83,14 @@ JDE_MODE=SQLITE JDE_SQLITE_PATH=jdfdata.sqlite JDE_DATA_LIB=JDFDATA node mcp/dis
 
 Requires a reachable Mapepire daemon on the IBM i (default port 8076).
 
+**Use a profile that has NO write authority on the data library. That object
+authority, not this app, is what makes the deployment read-only** (see
+[SECURITY](docs/SECURITY.md)).
+
 ```bash
 export JDE_MODE=LIVE
 export JDE_HOST=your-ibmi-host
-export JDE_USER=...           # a profile with read authority on the data library
+export JDE_USER=...           # profile with *USE (read) only; no *ADD/*UPD/*DLT on the library
 export JDE_PASSWORD=...
 export JDE_DATA_LIB=JDFDATA   # your environment's data library
 ```

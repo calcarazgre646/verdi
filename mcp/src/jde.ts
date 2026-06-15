@@ -40,7 +40,11 @@ export function assertIdentifier(name: string, label: string): string {
   return name;
 }
 
-// Read-only guard. Only SELECT and WITH (CTE) are allowed through jde_query.
+// Convenience / early-fail check, NOT a security boundary. This is string
+// matching, not a SQL parser, and is bypassable (e.g. a MODIFIES SQL DATA UDF
+// invoked from a SELECT on DB2 for i). Read-only MUST be enforced by the IBM i
+// profile's object authority (no write authority on the data library). See
+// docs/SECURITY.md. This guard just fails fast on the common mistakes.
 export function assertReadOnly(sql: string): void {
   const trimmed = sql.trim().replace(/^\(+/, "").toUpperCase();
   if (!/^(SELECT|WITH)\b/.test(trimmed)) {

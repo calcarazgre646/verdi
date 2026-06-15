@@ -57,12 +57,13 @@ When a user describes a screen, map it so you query the right file:
 `G09` General Accounting, `P0911` Journal Entries, `G04` Accounts Payable.
 You query via SQL, **not** by driving these screens.
 
-## Read-only by design
+## Read-only
 
-This core only **reads**: it queries master files and the catalog, and never
-mutates anything. Writing to JD Edwards safely (via inbound interface files plus
-the JDE batch processor, so the ERP applies its own edits) is handled by a
-separate module, not part of this open core.
+This core only **reads**: it queries master files and the catalog. `jde_query`
+also refuses non-`SELECT` statements, but that string check is a convenience, not
+the guarantee: read-only is enforced by running under an IBM i profile with no
+write authority on the data library (see `docs/SECURITY.md`). Writing to JD
+Edwards safely is handled by a separate module, not part of this open core.
 
 ## Tool map
 
