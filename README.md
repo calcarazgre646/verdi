@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="Verdi" width="120" height="120" />
+</p>
+
 # Verdi (open core)
 
 **Verdi** is an MCP server for **JD Edwards World** (IBM i / DB2 for i).
