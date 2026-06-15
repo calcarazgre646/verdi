@@ -86,7 +86,14 @@ noDD.close();
 
 // a write tool name is rejected cleanly
 ok((await s.tool("jde_stage_zfile", { zfile: "F0911Z1", idempotencyKey: "x", record: { ZDAA: 1 } })).result.isError, "write tool name rejected in open core");
-
 s.close();
+
+// OPTIONAL STRICT DISCOVERY: query before describe is refused (fails closed)
+const strict = boot({ JDE_STRICT_DISCOVERY: "on" });
+await strict.rpc("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "t", version: "0" } });
+ok((await strict.tool("jde_query", { sql: "SELECT SDDOCO FROM JDFDATA.F4211" })).result.isError, "strict: query before describe is refused");
+await strict.tool("jde_describe_file", { file: "F4211" });
+ok(J(await strict.tool("jde_query", { sql: "SELECT SDDOCO FROM JDFDATA.F4211" })).rowCount >= 1, "strict: query allowed after describe");
+strict.close();
 console.log("\n=== " + pass + " PASS / " + fail + " FAIL ===");
 process.exit(fail ? 1 : 0);

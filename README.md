@@ -95,7 +95,15 @@ export JDE_HOST=your-ibmi-host
 export JDE_USER=...           # profile with *USE (read) only; no *ADD/*UPD/*DLT on the library
 export JDE_PASSWORD=...
 export JDE_DATA_LIB=JDFDATA   # your environment's data library
+# optional extra layers:
+export JDE_INIT_SQL="SET TRANSACTION READ ONLY"  # best-effort session directive, run once at connect (not the guarantee)
+export JDE_STRICT_DISCOVERY=on                   # require jde_describe_file before a JDE file can be queried (fails closed)
 ```
+
+`JDE_INIT_SQL` runs once at connect, best-effort: a write-blocking session
+directive independent of the SQL guard. `JDE_STRICT_DISCOVERY` is an opt-in mode
+that refuses `jde_query` on any JDE file not yet described in the session. Both
+are off by default; neither replaces the profile authority.
 
 ## Key JDE World conventions (see skills/)
 

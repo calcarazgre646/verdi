@@ -6,6 +6,17 @@ import { text, type Ctx, type ToolModule } from "./module.js";
 export function readModule(ctx: Ctx): ToolModule {
   const { db, cfg } = ctx;
 
+  // Optional strict discovery mode (opt-in, not the happy path): require
+  // jde_describe_file before a JDE file can be queried. Session state lives for
+  // the server's lifetime. The check fails CLOSED: an unconfirmed file is refused.
+  const STRICT = /^(on|true|1|yes)$/i.test(process.env.JDE_STRICT_DISCOVERY || "");
+  const described = new Set<string>();
+  const jdeFilesIn = (sql: string) => {
+    const out = new Set<string>();
+    for (const m of (sql || "").toUpperCase().matchAll(/\bF\d[0-9A-Z]{2,}\b/g)) out.add(m[0]);
+    return [...out];
+  };
+
   // Data Dictionary spec for a data item (display decimals + date flag).
   // Same source as jde_data_dictionary so JDE_DD_QUERY overrides apply uniformly.
   const ddQuery = () =>
@@ -166,6 +177,14 @@ export function readModule(ctx: Ctx): ToolModule {
   const handlers = {
     async jde_query(args: any) {
       assertReadOnly(args.sql);
+      if (STRICT) {
+        const missing = jdeFilesIn(args.sql).filter((f) => !described.has(f));
+        if (missing.length) {
+          throw new Error(
+            `strict discovery: call jde_describe_file for ${missing.join(", ")} before querying (so layouts and decimals are confirmed, not assumed).`
+          );
+        }
+      }
       const r = await db.read(args.sql, args.params);
       // Force correctness: numbers come back DD-resolved or flagged, never bare,
       // plus read-side caveats (empty result, SQL aggregates) so a human is never
@@ -214,6 +233,7 @@ export function readModule(ctx: Ctx): ToolModule {
         `FROM QSYS2.SYSCOLUMNS WHERE TABLE_NAME = '${file}' AND TABLE_SCHEMA = '${cfg.dataLib}' ` +
         `ORDER BY ORDINAL_POSITION`;
       const r = await db.read(sql);
+      described.add(file); // satisfies strict discovery for subsequent jde_query
       return text({ file, library: cfg.dataLib, columns: r.rows });
     },
   };

@@ -65,6 +65,18 @@ async function createLiveDb(cfg: ReturnType<typeof getConfig>): Promise<Db> {
   });
   await pool.init();
 
+  // Optional, operator-supplied session directive run once at connect, e.g.
+  // JDE_INIT_SQL="SET TRANSACTION READ ONLY". Best-effort and NOT the read-only
+  // guarantee (that is the profile's object authority). Never fatal: if the
+  // install/driver does not accept it, log and continue.
+  if (process.env.JDE_INIT_SQL) {
+    try {
+      await pool.execute(process.env.JDE_INIT_SQL);
+    } catch (e: any) {
+      process.stderr.write(`[verdi] JDE_INIT_SQL best-effort failed (not the read-only guarantee): ${e?.message ?? e}\n`);
+    }
+  }
+
   const run = async (sql: string, params?: unknown[]): Promise<QueryResult> => {
     const res: any = params?.length
       ? await pool.execute(sql, { parameters: params })
