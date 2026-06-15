@@ -1,7 +1,7 @@
 {
   "name": "verdi",
   "version": "0.3.0",
-  "description": "Teaches any Claude agent to read and explore JD Edwards World (IBM i / DB2 for i) via SQL, with runtime layout and Data Dictionary discovery. Read-only open core.",
+  "description": "Teaches an AI agent to read JD Edwards World correctly: Julian dates, implied decimals and cryptic field names make raw SQL wrong, so Verdi encodes the conventions. Read-only open core.",
   "author": "Carlos Alcaraz Gregor",
   "license": "Apache-2.0",
   "mcpServers": {
