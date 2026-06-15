@@ -1,10 +1,94 @@
 // Read + discovery module (open core). SELECT-only access to JDE World physical
 // files plus catalog / data-dictionary discovery. No mutation happens here.
-import { assertReadOnly } from "./jde.js";
+import { assertReadOnly, julianToIso } from "./jde.js";
 import { text, type Ctx, type ToolModule } from "./module.js";
 
 export function readModule(ctx: Ctx): ToolModule {
   const { db, cfg } = ctx;
+
+  // Data Dictionary spec for a data item (display decimals + date flag).
+  // Same source as jde_data_dictionary so JDE_DD_QUERY overrides apply uniformly.
+  const ddQuery = () =>
+    process.env.JDE_DD_QUERY ||
+    `SELECT DTAI AS data_item, DTDESC AS description, DTDT AS data_type, ` +
+      `DTDS AS size, DTDD AS display_decimals FROM ${cfg.dataLib}.F9210 WHERE DTAI = ?`;
+
+  // A JDE physical column is uppercase, no underscore (2-char prefix + data item).
+  // Computed/aggregate columns should be aliased with an underscore (AS total_qty)
+  // or a short name to opt out of resolution.
+  const isJdeField = (n: string) => /^[A-Z][A-Z0-9]{2,}$/.test(n);
+
+  // Resolve a raw result set against the Data Dictionary so the agent never
+  // receives a bare, ambiguous JDE number. Correctness is forced by the tool:
+  // Julian dates become ISO, implied decimals are applied, and any numeric column
+  // we cannot resolve is wrapped as {raw, unresolved:true} (never a plain number).
+  async function resolveResult(r: { columns: string[]; rows: Record<string, unknown>[]; rowCount: number }) {
+    const cache = new Map<string, { found: boolean; decimals: number; isDate: boolean }>();
+    const specOf = async (di: string) => {
+      if (cache.has(di)) return cache.get(di)!;
+      let spec = { found: false, decimals: 0, isDate: false };
+      try {
+        const dd = await db.read(ddQuery(), [di]);
+        if (dd.rowCount) {
+          const row: any = dd.rows[0];
+          const dt = String(row.data_type ?? row.DATA_TYPE ?? "").toLowerCase();
+          spec = {
+            found: true,
+            decimals: Number(row.display_decimals ?? row.DISPLAY_DECIMALS ?? 0) || 0,
+            isDate: /date|julian/.test(dt),
+          };
+        }
+      } catch {
+        /* DD unreachable -> treat as not found (fail safe: numbers get flagged) */
+      }
+      cache.set(di, spec);
+      return spec;
+    };
+
+    const specs: Record<string, { di: string; found: boolean; decimals: number; isDate: boolean }> = {};
+    for (const name of r.columns) {
+      const di = name.length > 2 ? name.slice(2) : name;
+      const s = await specOf(di);
+      specs[name] = { di, ...s };
+    }
+
+    const wrapped = new Set<string>();
+    const rows = r.rows.map((row) => {
+      const o: Record<string, unknown> = {};
+      for (const name of r.columns) {
+        const v = row[name];
+        const s = specs[name];
+        const empty = v === null || v === undefined || v === "";
+        if (s.found && s.isDate) o[name] = empty ? v : julianToIso(Number(v));
+        else if (s.found && s.decimals > 0) o[name] = empty ? v : Number(v) / Math.pow(10, s.decimals);
+        else if (s.found) o[name] = v; // 0-decimal numeric or code: as stored
+        else if (isJdeField(name) && typeof v === "number" && Number.isInteger(v)) {
+          o[name] = { raw: v, unresolved: true };
+          wrapped.add(name);
+        } else o[name] = v; // text or non-JDE/computed column: pass through
+      }
+      return o;
+    });
+
+    const columns = r.columns.map((name) => {
+      const s = specs[name];
+      let resolution: string;
+      if (s.found && s.isDate) resolution = "julian->ISO";
+      else if (s.found && s.decimals > 0) resolution = `decimal(${s.decimals})`;
+      else if (s.found) resolution = "asis";
+      else if (wrapped.has(name)) resolution = "unresolved";
+      else resolution = "asis";
+      return { name, dataItem: s.di, resolution };
+    });
+
+    const out: Record<string, unknown> = { mode: db.mode, rowCount: r.rowCount, columns, rows };
+    if (wrapped.size) {
+      out.warnings = [
+        `No Data Dictionary entry for: ${[...wrapped].join(", ")}. Their numeric cells are returned as {raw, unresolved:true} and MUST NOT be interpreted as values. Resolve the data item or set JDE_DD_QUERY; alias computed columns with an underscore (e.g. AS total_qty) to opt out.`,
+      ];
+    }
+    return out;
+  }
 
   const tools = [
     {
@@ -64,7 +148,8 @@ export function readModule(ctx: Ctx): ToolModule {
     async jde_query(args: any) {
       assertReadOnly(args.sql);
       const r = await db.read(args.sql, args.params);
-      return text({ mode: db.mode, rowCount: r.rowCount, columns: r.columns, rows: r.rows });
+      // Force correctness: numbers come back DD-resolved or flagged, never bare.
+      return text(await resolveResult(r));
     },
     async jde_list_files(args: any) {
       const pattern = String(args.pattern ?? "%");

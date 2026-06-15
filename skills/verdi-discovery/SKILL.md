@@ -29,31 +29,30 @@ This returns the actual column names, types and lengths from the catalog. Use
 these exact names in your SQL. Never paste column names from documentation
 without confirming them here first.
 
-## Step 3: resolve display decimals BEFORE trusting any number
+## Display decimals are handled for you, not by you
 
-This is the step everyone skips and it silently corrupts money and quantities.
-The column scale in the catalog is usually `0`; the real number of decimals lives
-in the **Data Dictionary**, keyed by data item (the part of the column name after
-the 2-char file prefix).
+The single most corrupting JDE gotcha (catalog scale is `0`, but the real decimals
+live in the Data Dictionary) is resolved automatically by `jde_query`: it shifts
+implied decimals and converts Julian dates before returning, and flags anything it
+cannot resolve as `{raw, unresolved:true}`. You do not multiply or divide by powers
+of ten. `jde_data_dictionary` is for *inspecting* a data item when you want to
+understand or document it, not a step you must remember before every read.
 
 ```
-jde_data_dictionary { dataItem: "AA" }    -> amount, 2 display decimals
-jde_data_dictionary { dataItem: "UPRC" }  -> unit price, 4 display decimals
+jde_data_dictionary { dataItem: "UPRC" }  -> unit price, 4 display decimals (for inspection)
 ```
-
-If `display_decimals` is 4, a stored `125000` means `12.5000`. Apply
-`value / 10^display_decimals` before showing or summing.
 
 ## The bootstrap rule
 
 For any file you have not used on THIS install:
 1. `jde_list_files` to confirm it exists and its exact name.
 2. `jde_describe_file` to get real columns.
-3. `jde_data_dictionary` on every numeric data item you will read.
+3. Query it with `jde_query`; trust the resolved values, and never interpret a
+   `{raw, unresolved:true}` cell as a number (set `JDE_DD_QUERY` if the install's
+   Data Dictionary is not the default).
 
-Only then compose the query. This makes the plugin portable:
-it adapts to whatever install it connects to instead of carrying brittle
-hardcoded layouts.
+This makes the plugin portable: it adapts to whatever install it connects to, and
+correctness is enforced by the tool rather than relying on the agent to remember.
 
 ## Install-specific Data Dictionary
 

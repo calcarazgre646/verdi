@@ -21,9 +21,9 @@ CREATE TABLE F4101 (IMITM INTEGER, IMLITM TEXT, IMDSC1 TEXT, IMSRP1 TEXT);
 CREATE TABLE F41021 (LIITM INTEGER, LIMCU TEXT, LILOTN TEXT, LIPQOH INTEGER, LIPCOM INTEGER);
 -- Address Book
 CREATE TABLE F0101 (ABAN8 INTEGER, ABALPH TEXT, ABAT1 TEXT, ABTAX TEXT);
--- Sales Order Detail
+-- Sales Order Detail (SDUPRC = unit price, stored as integer with implied decimals)
 CREATE TABLE F4211 (SDDOCO INTEGER, SDLNID INTEGER, SDAN8 INTEGER, SDLITM TEXT,
-                    SDUORG INTEGER, SDSOQS INTEGER, SDTRDJ INTEGER, SDNXTR TEXT);
+                    SDUORG INTEGER, SDSOQS INTEGER, SDTRDJ INTEGER, SDNXTR TEXT, SDUPRC INTEGER);
 -- Data Dictionary field specifications (data item -> type/size/DISPLAY decimals).
 -- DTDD (display decimals) is the gotcha: it lives here, NOT in the column scale.
 -- Map JDE_DD_QUERY to the real DD on a live install (confirm against F9210).
@@ -46,14 +46,23 @@ ins(`INSERT INTO F0101 VALUES (?,?,?,?)`, [
   [4242, "Acme Distribution SA", "C", "80012345-6"],
   [5101, "Globex Supplies SRL", "V", "80098765-4"],
 ]);
-ins(`INSERT INTO F4211 VALUES (?,?,?,?,?,?,?,?)`, [
-  // SDTRDJ in Julian (126166 = 2026-06-15); SDNXTR < '999' => still open
-  [501001, 1, 4242, "JEAN-ACM-32", 10, 4, 126166, "520"],
-  [501001, 2, 4242, "JEAN-GLX-34", 6, 6, 126166, "999"],
+ins(`INSERT INTO F4211 VALUES (?,?,?,?,?,?,?,?,?)`, [
+  // SDTRDJ Julian (126166 = 2026-06-15); SDUPRC 125000 -> 12.5000 (UPRC has 4 decimals)
+  [501001, 1, 4242, "JEAN-ACM-32", 10, 4, 126166, "520", 125000],
+  [501001, 2, 4242, "JEAN-GLX-34", 6, 6, 126166, "999", 89900],
 ]);
 ins(`INSERT INTO F9210 VALUES (?,?,?,?,?)`, [
+  // data item, description, data type, size, DISPLAY decimals
   ["AN8", "Address Number", "Numeric", 8, 0],
   ["ITM", "Short Item Number", "Numeric", 8, 0],
+  ["LITM", "2nd Item Number", "String", 25, 0],
+  ["DOCO", "Document (Order No)", "Numeric", 8, 0],
+  ["LNID", "Line Number", "Numeric", 6, 0],
+  ["UORG", "Quantity Ordered", "Numeric", 15, 0],
+  ["SOQS", "Quantity Shipped", "Numeric", 15, 0],
+  ["PQOH", "Quantity On Hand", "Numeric", 15, 0],
+  ["PCOM", "Quantity Committed", "Numeric", 15, 0],
+  ["TRDJ", "Order Date (Julian)", "Date", 6, 0],
   ["AA", "Amount", "Numeric", 15, 2],
   ["U", "Quantity", "Numeric", 15, 0],
   ["UPRC", "Unit Price", "Numeric", 15, 4], // 4 display decimals: 125000 -> 12.5000

@@ -58,6 +58,23 @@ ok(dd.found && dd.display_decimals === 4, "jde_data_dictionary resolves display 
 ok(J(await s.tool("jde_query", { sql: "SELECT SDDOCO FROM JDFDATA.F4211 WHERE SDAN8=4242 AND SDNXTR<'999'" })).rowCount === 1, "jde_query reads open sales order");
 ok((await s.tool("jde_query", { sql: "DELETE FROM JDFDATA.F4211" })).result.isError, "read-only guard blocks DELETE");
 
+// FORCING FUNCTION: numbers come back resolved or flagged, never bare.
+const q = J(await s.tool("jde_query", { sql: "SELECT SDTRDJ, SDUPRC, SDUORG + 0 AS AVAIL FROM JDFDATA.F4211 WHERE SDDOCO=501001 AND SDLNID=1" }));
+const row = q.rows[0];
+ok(row.SDTRDJ === "2026-06-15", "Julian date auto-resolved to ISO (126166 -> 2026-06-15): " + row.SDTRDJ);
+ok(row.SDUPRC === 12.5, "implied decimals applied (125000 -> 12.5 via UPRC=4): " + row.SDUPRC);
+ok(row.AVAIL && row.AVAIL.unresolved === true, "column with no DD entry is wrapped {raw,unresolved}, not a bare number: " + JSON.stringify(row.AVAIL));
+ok(Array.isArray(q.warnings) && q.warnings.length > 0, "unresolved column raises a warning");
+const byName = Object.fromEntries(q.columns.map((c) => [c.name, c.resolution]));
+ok(byName.SDTRDJ === "julian->ISO" && byName.SDUPRC === "decimal(4)" && byName.AVAIL === "unresolved", "column provenance is reported: " + JSON.stringify(byName));
+
+// with no DD reachable, numbers must NOT come back bare (fail safe)
+const noDD = boot({ JDE_DD_QUERY: "SELECT 1 AS display_decimals, 'x' AS data_type WHERE 1=0" });
+await noDD.rpc("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "t", version: "0" } });
+const q2 = J(await noDD.tool("jde_query", { sql: "SELECT SDUPRC FROM JDFDATA.F4211 WHERE SDDOCO=501001 AND SDLNID=1" }));
+ok(q2.rows[0].SDUPRC && q2.rows[0].SDUPRC.unresolved === true, "no DD configured -> numeric value flagged unresolved, never bare");
+noDD.close();
+
 // a write tool name is rejected cleanly
 ok((await s.tool("jde_stage_zfile", { zfile: "F0911Z1", idempotencyKey: "x", record: { ZDAA: 1 } })).result.isError, "write tool name rejected in open core");
 

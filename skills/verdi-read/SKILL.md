@@ -6,7 +6,23 @@ description: Recipes for reading JD Edwards World data via SQL (stock on hand, s
 # Reading JDE World
 
 All reads go through `jde_query` (SELECT/WITH only). Qualify files with the data
-library. Convert Julian dates and watch implied decimals (see foundations).
+library.
+
+## Numbers are resolved for you (do not re-interpret them)
+
+`jde_query` resolves every column against the Data Dictionary before returning, so
+you never see a raw, ambiguous JDE number:
+
+- Julian date columns come back as ISO strings (`126166` -> `"2026-06-15"`).
+- Implied-decimal columns come back as the real value (`125000` -> `12.5`).
+- `columns[].resolution` shows what was applied (`julian->ISO`, `decimal(4)`, `asis`).
+
+**Use the values in `rows` as-is. Never re-shift decimals or re-convert dates; the
+tool already did.** If a cell comes back as `{ "raw": N, "unresolved": true }`, the
+Data Dictionary had no entry for that column: **do NOT interpret it as a value.**
+It also appears in `warnings`. Either the column is computed, or the install's DD
+needs `JDE_DD_QUERY` set. Alias computed columns with an underscore (e.g.
+`AS available_qty`) so they pass through untouched instead of being flagged.
 
 ## Before you query an unfamiliar file
 
@@ -20,7 +36,7 @@ columns from memory; installs customize.
 ```sql
 SELECT LIITM AS item, TRIM(LIMCU) AS store,
        LIPQOH AS on_hand, LIPCOM AS committed,
-       LIPQOH - LIPCOM AS available
+       LIPQOH - LIPCOM AS available_qty   -- underscore alias: computed, opts out of DD resolution
 FROM JDFDATA.F41021
 WHERE LIITM = ?            -- short item number
 ORDER BY store
@@ -74,8 +90,8 @@ WHERE ABALPH LIKE ?       -- e.g. 'ACME%'
 
 ## Reporting discipline
 
-- Convert every Julian column you show a human.
-- Apply implied decimals before summing or comparing money/quantities.
+- Trust the resolved values in `rows`; never re-convert dates or re-shift decimals.
+- Never report a `{raw, unresolved:true}` cell as a number. Resolve it first.
 - If a join returns zero rows, suspect `MCU`/char padding first.
 - A failed read is not zero. Surface the error; never let `?? 0` print a fake
   business number.
